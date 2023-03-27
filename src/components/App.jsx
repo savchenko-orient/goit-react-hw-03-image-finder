@@ -1,97 +1,142 @@
 import { Component } from 'react';
-import { nanoid } from 'nanoid';
-import ContactsList from './ContactsList/ContactsList';
-import ContactsForm from './ContactsForm/ContactsForm';
-import Filter from './Filter/Filter';
+import { fetchImages } from '../Services/Api';
+import css from './App.module.css';
+import Searchbar from './Searchbar/Searchbar';
+import ImageGallery from './ImageGallery/ImageGallery';
+import Button from './Button/Button';
+import Loader from './Loader/Loader';
+import Modal from './Modal/Modal';
 
-const DEFAULT_STATE = {
-  contacts: [
-    { id: 'id-1', name: 'Eden Clements', number: '645-17-79' },
-  ],
-  filter: '',
-};
+class App extends Component {
+  state = {
+    images: [],
+    topic: '',
+    page: 1,
+    totalHits: 500,
+    perPage: 12,
+    isLoading: false,
+    error: null,
+    showModal: false,
+    imgLargeSrc: '',
+    imgAlt: '',
+  };
 
-const LS_KEY = 'contacts';
+  loadImages = async () => {
+    this.setState({ isLoading: true });
+    try {
+      const { topic, page, perPage } = this.state;
 
-export default class App extends Component {
-  state = DEFAULT_STATE;
+      const response = await fetchImages(topic, page, perPage);
 
-  componentDidMount() {
-    const dataFromLS = JSON.parse(localStorage.getItem(LS_KEY));
+      this.setState({
+        images: response.hits,
+        error: null,
+        totalHits: response.totalHits,
+      });
+    } catch (error) {
+      this.setState({ error: error });
+      throw new Error(error);
+    } finally {
+      this.setState({ isLoading: false });
+    }
+  };
 
-    if (dataFromLS) {
-      this.setState(() => ({
-        contacts: dataFromLS
-      }));
+  loadMoreImages = async () => {
+    this.setState({ isLoading: true });
+    try {
+      const { topic, page, perPage } = this.state;
+
+      const response = await fetchImages(topic, page, perPage);
+
+      this.setState(prevState => {
+        return {
+          images: [...prevState.images, ...response.hits],
+          error: null,
+        };
+      });
+    } catch (error) {
+      this.setState({ error: error });
+      throw new Error(error);
+    } finally {
+      this.setState({ isLoading: false });
+    }
+  };
+
+  handleFormSubmit = event => {
+    event.preventDefault();
+    this.loadImages();
+  };
+
+  handleInputChange = event => {
+    const value = event.target.value;
+    this.setState({ topic: value });
+  };
+
+  handleLoadMore = () => {
+    this.setState(prevState => ({ page: prevState.page + 1 }));
+  };
+
+  componentDidUpdate(prevProps, prevState) {
+    if (prevState.page !== this.state.page) {
+      this.loadMoreImages();
     }
   }
 
-  componentDidUpdate() {
-    this.state.contacts.length !== 0 ?
-      localStorage.setItem(LS_KEY, JSON.stringify(this.state.contacts))
-      : localStorage.removeItem(LS_KEY);
-  }
-
-  addSumbitHandler = ({ name, number }) => {
-    const contact = {
-      id: nanoid(),
-      name,
-      number,
-    };
-
-    const isHaveDublicateName = this.state.contacts.find(
-      contact => contact.name === name
-    );
-
-    if (isHaveDublicateName) {
-      alert(`${name} is already in contacts`)
-      return;
-    }
-    this.setState(({ contacts }) => ({
-      contacts: [contact, ...contacts]
-    }));
+  handleshowModal = event => {
+    const imgAlt = event.target.alt;
+    const imgLargeSrc = event.target.srcset;
+    this.setState({
+      showModal: true,
+      imgAlt: imgAlt,
+      imgLargeSrc: imgLargeSrc,
+    });
   };
 
-  changeFilter = (e) => {
-    this.setState({ filter: e.currentTarget.value });
-  };
-
-  deleteContactHandler = (id) => {
-    this.setState(prevState => ({
-      contacts: prevState.contacts.filter(contact => contact.id !== id),
-    }));
-  };
-
-  getFiltredContacts = () => {
-    const { contacts, filter } = this.state;
-    const filtredContacts = contacts.filter(contact =>
-      contact.name.toLowerCase().includes(filter.toLowerCase())
-    );
-    return filtredContacts;
+  onModalClose = () => {
+    this.setState({
+      showModal: false,
+      imgAlt: '',
+      imgLargeSrc: '',
+    });
   };
 
   render() {
-    const { contacts, filter } = this.state;
-    const contactsCount = contacts.length;
-    const filtredContacts = this.getFiltredContacts();
-
+    const {
+      images,
+      isLoading,
+      showModal,
+      imgAlt,
+      imgLargeSrc,
+      page,
+      perPage,
+      totalHits,
+    } = this.state;
     return (
-      <div>
-        <h1>Phonebook</h1>
-        <ContactsForm
-          onSubmit={this.addSumbitHandler}
+      <div className={css.App}>
+        <Searchbar
+          onSubmit={this.handleFormSubmit}
+          handleInputChange={this.handleInputChange}
         />
-        <h2>Contacts</h2>
-        <Filter
-          contactsCount={contactsCount}
-          value={filter}
-          onChange={this.changeFilter}
-        />
-        <ContactsList
-          onDeleteContact={this.deleteContactHandler}
-          contacts={filtredContacts}
-        />
+        <ImageGallery images={images} handleshowModal={this.handleshowModal} />
+        <Loader isLoading={isLoading} />
+
+        {images.length > 0 && page * perPage < totalHits && (
+          <Button
+            buttonText={isLoading ? 'Loading...' : 'Load More'}
+            handleLoadMore={this.handleLoadMore}
+          />
+        )}
+        {showModal && (
+          <Modal
+            imgAlt={imgAlt}
+            imgLargeSrc={imgLargeSrc}
+            onKeyPress={this.onKeyPress}
+            onModalClose={this.onModalClose}
+          />
+        )}
       </div>
-    )
+    );
   }
-};
+}
+
+export default App;
