@@ -62,22 +62,17 @@ class App extends Component {
     }
   };
 
-  handleFormSubmit = event => {
-    event.preventDefault();
-    this.loadImages();
-  };
-
-  handleInputChange = event => {
-    const value = event.target.value;
-    this.setState({ topic: value });
+  handleFormSubmit = topic => {
+    this.setState({ topic: topic, page: 1, images: [] });
   };
 
   handleLoadMore = () => {
     this.setState(prevState => ({ page: prevState.page + 1 }));
   };
 
-  componentDidUpdate(prevProps, prevState) {
-    if (prevState.page !== this.state.page) {
+  componentDidUpdate(_, prevState) {
+    if (prevState.topic !== this.state.topic ||
+      prevState.page !== this.state.page) {
       this.loadMoreImages();
     }
   }
@@ -115,7 +110,6 @@ class App extends Component {
       <div className={css.App}>
         <Searchbar
           onSubmit={this.handleFormSubmit}
-          handleInputChange={this.handleInputChange}
         />
         <ImageGallery images={images} handleshowModal={this.handleshowModal} />
         <Loader isLoading={isLoading} />
